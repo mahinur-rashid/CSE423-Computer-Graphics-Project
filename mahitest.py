@@ -8,7 +8,7 @@ from OpenGL.GLU import *
 
 # Window dimensions
 WINDOW_WIDTH = 1200
-WINDOW_HEIGHT = 600
+WINDOW_HEIGHT = 700
 
 # Game element dimensions and speeds
 CIRCLE_RADIUS = 20
@@ -21,12 +21,9 @@ SHIP_SPEED = 20
 BULLET_SPEED = 300
 
 SPECIAL_CIRCLE_POINTS = 5
-MAX_MISSED_CIRCLES = 3
 
 # Game state variables
 current_score = 0
-player1_missed_circles = 0  # Separate counter for player 1
-player2_missed_circles = 0  # Separate counter for player 2
 game_is_over = False
 is_paused = True
 first_start = True
@@ -154,21 +151,23 @@ def render_ship(x, y, is_player_one):
 
     half_height = SHIP_HEIGHT // 2
     main_body_width = int(SHIP_WIDTH * 0.75)
-    nose_width = SHIP_WIDTH - main_body_width
 
-    # Main body
-    draw_line(x, y - half_height, x + main_body_width, y - half_height)
-    draw_line(x, y + half_height, x + main_body_width, y + half_height)
-    draw_line(x, y - half_height, x, y + half_height)
-    
     if is_player_one:
         # Player 1 (facing right)
+        # Main body
+        draw_line(x, y - half_height, x + main_body_width, y - half_height)
+        draw_line(x, y + half_height, x + main_body_width, y + half_height)
+        draw_line(x, y - half_height, x, y + half_height)
         draw_line(x + main_body_width, y - half_height, x + main_body_width, y + half_height)
         # Nose
         draw_line(x + main_body_width, y - half_height, x + SHIP_WIDTH, y)
         draw_line(x + main_body_width, y + half_height, x + SHIP_WIDTH, y)
     else:
         # Player 2 (facing left)
+        # Main body
+        draw_line(x, y - half_height, x - main_body_width, y - half_height)
+        draw_line(x, y + half_height, x - main_body_width, y + half_height)
+        draw_line(x, y - half_height, x, y + half_height)
         draw_line(x - main_body_width, y - half_height, x - main_body_width, y + half_height)
         # Nose
         draw_line(x - main_body_width, y - half_height, x - SHIP_WIDTH, y)
@@ -300,7 +299,7 @@ def check_ship_collision(ship_x, ship_y, circle_x, circle_y, circle_radius):
 
 def update_game_state():
     global bullets_p1, bullets_p2, circles_p1, circles_p2, player1_score, player2_score
-    global game_is_over, last_circle_spawn_time, player1_missed_circles, player2_missed_circles
+    global game_is_over, last_circle_spawn_time
 
     if is_paused or game_is_over:
         current_time = time.time()
@@ -343,46 +342,34 @@ def update_game_state():
 
     # Update circles for player 1
     for circle in circles_p1[:]:
-        circle['x'] -= CIRCLE_SPEED * (current_time - circle['last_update'])
+        circle['y'] -= CIRCLE_SPEED * (current_time - circle['last_update'])
         circle['last_update'] = current_time
 
-        if circle['x'] < 0:
+        if circle['y'] < 0:
             circles_p1.remove(circle)
-            player1_missed_circles += 1
-            print(f"Player 1 Missed Circles: {player1_missed_circles}")
-            if player1_missed_circles >= MAX_MISSED_CIRCLES:
-                game_is_over = True
-                print("Player 2 wins! Player 1 missed too many circles!")
-                return
 
     # Update circles for player 2
     for circle in circles_p2[:]:
-        circle['x'] += CIRCLE_SPEED * (current_time - circle['last_update'])
+        circle['y'] -= CIRCLE_SPEED * (current_time - circle['last_update'])
         circle['last_update'] = current_time
 
-        if circle['x'] > WINDOW_WIDTH:
+        if circle['y'] < 0:
             circles_p2.remove(circle)
-            player2_missed_circles += 1
-            print(f"Player 2 Missed Circles: {player2_missed_circles}")
-            if player2_missed_circles >= MAX_MISSED_CIRCLES:
-                game_is_over = True
-                print("Player 1 wins! Player 2 missed too many circles!")
-                return
 
     # Spawn new circles
     if current_time - last_circle_spawn_time > 2:
         # Spawn circle for player 1 (from right)
         circles_p1.append({
-            'x': WINDOW_WIDTH,
-            'y': random.randint(CIRCLE_RADIUS, WINDOW_HEIGHT - CIRCLE_RADIUS),
+            'x': random.randint(0, WINDOW_WIDTH//2),
+            'y': WINDOW_HEIGHT,
             'radius': CIRCLE_RADIUS,
             'is_special': random.random() < 0.2,
             'last_update': current_time
         })
         # Spawn circle for player 2 (from left)
         circles_p2.append({
-            'x': 0,
-            'y': random.randint(CIRCLE_RADIUS, WINDOW_HEIGHT - CIRCLE_RADIUS),
+            'x': random.randint(WINDOW_WIDTH//2, WINDOW_WIDTH),
+            'y': WINDOW_HEIGHT,
             'radius': CIRCLE_RADIUS,
             'is_special': random.random() < 0.2,
             'last_update': current_time
@@ -475,8 +462,7 @@ def update_game_state():
 # Mouse interaction for buttons
 def handle_mouse(button, state, x, y):
     global is_paused, game_is_over, circles_p1, circles_p2, bullets_p1, bullets_p2
-    global player1_score, player2_score, player1_missed_circles, player2_missed_circles, missed_shots
-    global first_start, last_circle_spawn_time, current_score
+    global player1_score, player2_score, first_start, last_circle_spawn_time, current_score
     
     if state == GLUT_DOWN:
         y = WINDOW_HEIGHT - y  # Adjust y for OpenGL's coordinate system
@@ -493,9 +479,6 @@ def handle_mouse(button, state, x, y):
                     player1_score = 0
                     player2_score = 0
                     current_score = 0
-                    player1_missed_circles = 0
-                    player2_missed_circles = 0
-                    missed_shots = 0
                     circles_p1 = []
                     circles_p2 = []
                     bullets_p1 = []
@@ -512,7 +495,7 @@ def handle_mouse(button, state, x, y):
 def handle_keyboard(key, x, y):
     global player1_position_y, player1_position_x, player2_position_y, player2_position_x, bullets_p1, bullets_p2
 
-    if not game_is_over:
+    if not game_is_over and not is_paused:
         # Player 1 controls (WASD for movement, SPACE for shooting)
         if key == b'w' and player1_position_y < WINDOW_HEIGHT - SHIP_HEIGHT/2:
             player1_position_y += SHIP_SPEED
