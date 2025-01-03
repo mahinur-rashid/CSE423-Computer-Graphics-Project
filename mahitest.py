@@ -25,12 +25,12 @@ MAX_MISSED_CIRCLES = 3
 
 # Game state variables
 current_score = 0
-missed_circles = 0
-missed_shots = 0
+player1_missed_circles = 0  # Separate counter for player 1
+player2_missed_circles = 0  # Separate counter for player 2
 game_is_over = False
 is_paused = True
 first_start = True
-last_circle_spawn_time = time.time()  # Initialize this here
+last_circle_spawn_time = time.time()
 
 # Game state variables for two players
 player1_position_y = WINDOW_HEIGHT // 2
@@ -41,9 +41,11 @@ player2_position_y = WINDOW_HEIGHT // 2
 player2_position_x = WINDOW_WIDTH - 50
 player2_score = 0
 
+# Lists to store game objects
 bullets_p1 = []
 bullets_p2 = []
-circles = []
+circles_p1 = []  # Circles moving towards player 1
+circles_p2 = []  # Circles moving towards player 2
 
 # Button positions
 BUTTONS = {
@@ -297,14 +299,14 @@ def check_ship_collision(ship_x, ship_y, circle_x, circle_y, circle_radius):
     return False
 
 def update_game_state():
-    global bullets_p1, bullets_p2, circles, player1_score, player2_score
-    global game_is_over, last_circle_spawn_time, missed_circles, current_score
+    global bullets_p1, bullets_p2, circles_p1, circles_p2, player1_score, player2_score
+    global game_is_over, last_circle_spawn_time, player1_missed_circles, player2_missed_circles
 
     if is_paused or game_is_over:
         current_time = time.time()
         for bullet in bullets_p1 + bullets_p2:
             bullet['last_update'] = current_time
-        for circle in circles:
+        for circle in circles_p1 + circles_p2:
             circle['last_update'] = current_time
         return
 
@@ -316,71 +318,79 @@ def update_game_state():
         bullet['last_update'] = current_time
         if bullet['x'] > WINDOW_WIDTH:
             bullets_p1.remove(bullet)
+            continue
+        
+        # Check if bullet hits player 2
+        if (abs(bullet['x'] - player2_position_x) < SHIP_WIDTH/2 and
+            abs(bullet['y'] - player2_position_y) < SHIP_HEIGHT/2):
+            game_is_over = True
+            print("Player 1 wins! Player 2's ship was destroyed!")
+            return
 
     for bullet in bullets_p2[:]:
         bullet['x'] -= BULLET_SPEED * (current_time - bullet['last_update'])
         bullet['last_update'] = current_time
         if bullet['x'] < 0:
             bullets_p2.remove(bullet)
-
-    # Check for bullet hits between players
-    for bullet in bullets_p1[:]:
-        if (abs(bullet['x'] - player2_position_x) < SHIP_WIDTH/2 and
-            abs(bullet['y'] - player2_position_y) < SHIP_HEIGHT/2):
-            player1_score += 1
-            bullets_p1.remove(bullet)
-            if player1_score >= 10:
-                game_is_over = True
-                print("Player 1 wins!")
-
-    for bullet in bullets_p2[:]:
+            continue
+        
+        # Check if bullet hits player 1
         if (abs(bullet['x'] - player1_position_x) < SHIP_WIDTH/2 and
             abs(bullet['y'] - player1_position_y) < SHIP_HEIGHT/2):
-            player2_score += 1
-            bullets_p2.remove(bullet)
-            if player2_score >= 10:
-                game_is_over = True
-                print("Player 2 wins!")
+            game_is_over = True
+            print("Player 2 wins! Player 1's ship was destroyed!")
+            return
 
-    # Update circles
-    for circle in circles[:]:
-        circle['y'] -= CIRCLE_SPEED * (current_time - circle['last_update'])
+    # Update circles for player 1
+    for circle in circles_p1[:]:
+        circle['x'] -= CIRCLE_SPEED * (current_time - circle['last_update'])
         circle['last_update'] = current_time
 
-        # Check for ship collision
-        if check_ship_collision(player1_position_x, player1_position_y, 
-                              circle['x'], circle['y'], circle['radius']):
-            game_is_over = True
-            print("Game Over! Player 1's ship destroyed! Press 'Restart' to play again.")
-            return
-
-        if check_ship_collision(player2_position_x, player2_position_y, 
-                              circle['x'], circle['y'], circle['radius']):
-            game_is_over = True
-            print("Game Over! Player 2's ship destroyed! Press 'Restart' to play again.")
-            return
-
-        if circle['y'] < 0:
-            circles.remove(circle)
-            missed_circles += 1
-            print(f"Missed Circles: {missed_circles}")
-            if missed_circles >= MAX_MISSED_CIRCLES:
+        if circle['x'] < 0:
+            circles_p1.remove(circle)
+            player1_missed_circles += 1
+            print(f"Player 1 Missed Circles: {player1_missed_circles}")
+            if player1_missed_circles >= MAX_MISSED_CIRCLES:
                 game_is_over = True
-                print("Game Over! Press 'Restart' to play again.")
+                print("Player 2 wins! Player 1 missed too many circles!")
+                return
+
+    # Update circles for player 2
+    for circle in circles_p2[:]:
+        circle['x'] += CIRCLE_SPEED * (current_time - circle['last_update'])
+        circle['last_update'] = current_time
+
+        if circle['x'] > WINDOW_WIDTH:
+            circles_p2.remove(circle)
+            player2_missed_circles += 1
+            print(f"Player 2 Missed Circles: {player2_missed_circles}")
+            if player2_missed_circles >= MAX_MISSED_CIRCLES:
+                game_is_over = True
+                print("Player 1 wins! Player 2 missed too many circles!")
+                return
 
     # Spawn new circles
-    if current_time - last_circle_spawn_time > 2:  # Spawn every 2 seconds
-        circles.append({
-            'x': random.randint(CIRCLE_RADIUS, WINDOW_WIDTH - CIRCLE_RADIUS),
-            'y': WINDOW_HEIGHT,
+    if current_time - last_circle_spawn_time > 2:
+        # Spawn circle for player 1 (from right)
+        circles_p1.append({
+            'x': WINDOW_WIDTH,
+            'y': random.randint(CIRCLE_RADIUS, WINDOW_HEIGHT - CIRCLE_RADIUS),
             'radius': CIRCLE_RADIUS,
-            'is_special': random.random() < 0.2,  # 20% chance of being special
+            'is_special': random.random() < 0.2,
+            'last_update': current_time
+        })
+        # Spawn circle for player 2 (from left)
+        circles_p2.append({
+            'x': 0,
+            'y': random.randint(CIRCLE_RADIUS, WINDOW_HEIGHT - CIRCLE_RADIUS),
+            'radius': CIRCLE_RADIUS,
+            'is_special': random.random() < 0.2,
             'last_update': current_time
         })
         last_circle_spawn_time = current_time
 
     # Detect collisions
-    for circle in circles[:]:
+    for circle in circles_p1[:]:
         circle_box = {
             'x': circle['x'] - circle['radius'],
             'y': circle['y'] - circle['radius'],
@@ -400,7 +410,7 @@ def update_game_state():
                 circle_box['y'] + circle_box['height'] > bullet_box['y']):
                 player1_score += SPECIAL_CIRCLE_POINTS if circle['is_special'] else 1
                 print(f"Player 1 Score updated! Current Score: {player1_score}")
-                circles.remove(circle)
+                circles_p1.remove(circle)
                 bullets_p1.remove(bullet)
                 break
         for bullet in bullets_p2[:]:
@@ -416,7 +426,47 @@ def update_game_state():
                 circle_box['y'] + circle_box['height'] > bullet_box['y']):
                 player2_score += SPECIAL_CIRCLE_POINTS if circle['is_special'] else 1
                 print(f"Player 2 Score updated! Current Score: {player2_score}")
-                circles.remove(circle)
+                circles_p1.remove(circle)
+                bullets_p2.remove(bullet)
+                break
+
+    for circle in circles_p2[:]:
+        circle_box = {
+            'x': circle['x'] - circle['radius'],
+            'y': circle['y'] - circle['radius'],
+            'width': 2 * circle['radius'],
+            'height': 2 * circle['radius']
+        }
+        for bullet in bullets_p1[:]:
+            bullet_box = {
+                'x': bullet['x'],
+                'y': bullet['y'],
+                'width': 1,
+                'height': 1
+            }
+            if (circle_box['x'] < bullet_box['x'] + bullet_box['width'] and
+                circle_box['x'] + circle_box['width'] > bullet_box['x'] and
+                circle_box['y'] < bullet_box['y'] + bullet_box['height'] and
+                circle_box['y'] + circle_box['height'] > bullet_box['y']):
+                player1_score += SPECIAL_CIRCLE_POINTS if circle['is_special'] else 1
+                print(f"Player 1 Score updated! Current Score: {player1_score}")
+                circles_p2.remove(circle)
+                bullets_p1.remove(bullet)
+                break
+        for bullet in bullets_p2[:]:
+            bullet_box = {
+                'x': bullet['x'],
+                'y': bullet['y'],
+                'width': 1,
+                'height': 1
+            }
+            if (circle_box['x'] < bullet_box['x'] + bullet_box['width'] and
+                circle_box['x'] + circle_box['width'] > bullet_box['x'] and
+                circle_box['y'] < bullet_box['y'] + bullet_box['height'] and
+                circle_box['y'] + circle_box['height'] > bullet_box['y']):
+                player2_score += SPECIAL_CIRCLE_POINTS if circle['is_special'] else 1
+                print(f"Player 2 Score updated! Current Score: {player2_score}")
+                circles_p2.remove(circle)
                 bullets_p2.remove(bullet)
                 break
 
@@ -424,8 +474,8 @@ def update_game_state():
 
 # Mouse interaction for buttons
 def handle_mouse(button, state, x, y):
-    global is_paused, game_is_over, circles, bullets_p1, bullets_p2
-    global player1_score, player2_score, missed_circles, missed_shots
+    global is_paused, game_is_over, circles_p1, circles_p2, bullets_p1, bullets_p2
+    global player1_score, player2_score, player1_missed_circles, player2_missed_circles, missed_shots
     global first_start, last_circle_spawn_time, current_score
     
     if state == GLUT_DOWN:
@@ -443,9 +493,11 @@ def handle_mouse(button, state, x, y):
                     player1_score = 0
                     player2_score = 0
                     current_score = 0
-                    missed_circles = 0
+                    player1_missed_circles = 0
+                    player2_missed_circles = 0
                     missed_shots = 0
-                    circles = []
+                    circles_p1 = []
+                    circles_p2 = []
                     bullets_p1 = []
                     bullets_p2 = []
                     game_is_over = False
@@ -458,14 +510,18 @@ def handle_mouse(button, state, x, y):
 
 # Handle keyboard input
 def handle_keyboard(key, x, y):
-    global player1_position_y, player2_position_y, bullets_p1, bullets_p2
+    global player1_position_y, player1_position_x, player2_position_y, player2_position_x, bullets_p1, bullets_p2
 
     if not game_is_over:
-        # Player 1 controls (W/S for movement, SPACE for shooting)
+        # Player 1 controls (WASD for movement, SPACE for shooting)
         if key == b'w' and player1_position_y < WINDOW_HEIGHT - SHIP_HEIGHT/2:
             player1_position_y += SHIP_SPEED
         elif key == b's' and player1_position_y > SHIP_HEIGHT/2:
             player1_position_y -= SHIP_SPEED
+        elif key == b'a' and player1_position_x > SHIP_WIDTH:
+            player1_position_x -= SHIP_SPEED
+        elif key == b'd' and player1_position_x < WINDOW_WIDTH/2 - SHIP_WIDTH:
+            player1_position_x += SHIP_SPEED
         elif key == b' ':
             bullets_p1.append({
                 'x': player1_position_x + SHIP_WIDTH,
@@ -473,11 +529,15 @@ def handle_keyboard(key, x, y):
                 'last_update': time.time()
             })
 
-        # Player 2 controls (O/L for movement, P for shooting)
-        if key == b'o' and player2_position_y < WINDOW_HEIGHT - SHIP_HEIGHT/2:
+        # Player 2 controls (IJKL for movement, P for shooting)
+        if key == b'i' and player2_position_y < WINDOW_HEIGHT - SHIP_HEIGHT/2:
             player2_position_y += SHIP_SPEED
-        elif key == b'l' and player2_position_y > SHIP_HEIGHT/2:
+        elif key == b'k' and player2_position_y > SHIP_HEIGHT/2:
             player2_position_y -= SHIP_SPEED
+        elif key == b'j' and player2_position_x > WINDOW_WIDTH/2 + SHIP_WIDTH:
+            player2_position_x -= SHIP_SPEED
+        elif key == b'l' and player2_position_x < WINDOW_WIDTH - SHIP_WIDTH:
+            player2_position_x += SHIP_SPEED
         elif key == b'p':
             bullets_p2.append({
                 'x': player2_position_x - SHIP_WIDTH,
@@ -499,6 +559,12 @@ def render_game():
             draw_circle(bullet['x'], bullet['y'], 5)
         for bullet in bullets_p2:
             draw_circle(bullet['x'], bullet['y'], 5)
+
+        # Render circles for both players
+        for circle in circles_p1:
+            render_circle(circle['x'], circle['y'], circle['radius'], circle['is_special'])
+        for circle in circles_p2:
+            render_circle(circle['x'], circle['y'], circle['radius'], circle['is_special'])
 
         # Render scores
         # (You'll need to add text rendering for scores)
