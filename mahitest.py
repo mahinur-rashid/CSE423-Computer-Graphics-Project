@@ -12,15 +12,24 @@ WINDOW_HEIGHT = 700
 
 # Game element dimensions and speeds
 CIRCLE_RADIUS = 20
-CIRCLE_SPEED = 60
+CIRCLE_SPEED = 30  # Reduced from 60
 
 SHIP_WIDTH = 90
 SHIP_HEIGHT = 40
-SHIP_SPEED = 20
+SHIP_SPEED = 25
 
 BULLET_SPEED = 300
 
 SPECIAL_CIRCLE_POINTS = 5
+MAX_HEALTH = 100
+HEALTH_BAR_HEIGHT = 5
+HEALTH_BAR_PADDING = 20  # Increased padding
+BULLET_DAMAGE = 15
+OBSTACLE_DAMAGE = 10
+
+MIDDLE_PADDING = 30  # Space between player areas
+TOP_PADDING = 110  # Space from top for health bars
+SIDE_PADDING = 10  # Space from sides of screen
 
 # Game state variables
 current_score = 0
@@ -31,22 +40,25 @@ last_circle_spawn_time = time.time()
 
 # Game state variables for two players
 player1_position_y = WINDOW_HEIGHT // 2
-player1_position_x = 50
-player1_score = 0
+player1_position_x = SIDE_PADDING + SHIP_WIDTH  # Start farther from left edge
 
 player2_position_y = WINDOW_HEIGHT // 2
-player2_position_x = WINDOW_WIDTH - 50
+player2_position_x = WINDOW_WIDTH - (SIDE_PADDING + SHIP_WIDTH)  # Start farther from right edge
+
+player1_score = 0
+player1_health = MAX_HEALTH
+
 player2_score = 0
+player2_health = MAX_HEALTH
 
 # Lists to store game objects
 bullets_p1 = []
 bullets_p2 = []
-circles_p1 = []  # Circles moving towards player 1
-circles_p2 = []  # Circles moving towards player 2
+circles = []  # Single list for all circles
 
 # Button positions
 BUTTONS = {
-    "start": {"x": WINDOW_WIDTH // 2, "y": WINDOW_HEIGHT - 50, "width": 40, "height": 40},
+    "start": {"x": WINDOW_WIDTH // 2 - 20, "y": WINDOW_HEIGHT - 50, "width": 40, "height": 40},
     "restart": {"x": 15, "y": WINDOW_HEIGHT - 50, "width": 40, "height": 40},
     "quit": {"x": WINDOW_WIDTH - 65, "y": WINDOW_HEIGHT - 50, "width": 40, "height": 40},
 }
@@ -178,7 +190,9 @@ def render_ship(x, y, is_player_one):
 def render_circle(x, y, radius, is_special):
     if is_special:
         radius += int(5 * math.sin(time.time() * 5))  # Animate radius
-    glColor3f(1, 0, 0) if is_special else glColor3f(0, 0, 1)
+        glColor3f(1, 0.65, 0.65)  # Light red for special circles
+    else:
+        glColor3f(0.65, 0.65, 1)  # Light blue for regular circles
     draw_circle(x, y, radius)
 
 def draw_play_symbol(x, y, size):
@@ -250,7 +264,7 @@ def render_buttons():
             draw_quit_symbol(x + size//4, y + size//4, size//2)
 
 # Update game state
-def check_ship_collision(ship_x, ship_y, circle_x, circle_y, circle_radius):
+def ship_collision_with_circle(ship_x, ship_y, circle_x, circle_y, circle_radius):
     # Ship hitbox components
     half_width = SHIP_WIDTH // 2
     main_body_height = int(SHIP_HEIGHT * 0.75)
@@ -298,18 +312,27 @@ def check_ship_collision(ship_x, ship_y, circle_x, circle_y, circle_radius):
     return False
 
 def update_game_state():
-    global bullets_p1, bullets_p2, circles_p1, circles_p2, player1_score, player2_score
-    global game_is_over, last_circle_spawn_time
+    global bullets_p1, bullets_p2, circles, player1_score, player2_score
+    global game_is_over, last_circle_spawn_time, player1_health, player2_health
 
     if is_paused or game_is_over:
         current_time = time.time()
         for bullet in bullets_p1 + bullets_p2:
             bullet['last_update'] = current_time
-        for circle in circles_p1 + circles_p2:
+        for circle in circles:
             circle['last_update'] = current_time
         return
 
     current_time = time.time()
+
+    # Check bullet-bullet collisions first
+    for bullet1 in bullets_p1[:]:
+        for bullet2 in bullets_p2[:]:
+            if abs(bullet1['x'] - bullet2['x']) < 5 and abs(bullet1['y'] - bullet2['y']) < 5:
+                if bullet1 in bullets_p1 and bullet2 in bullets_p2:
+                    bullets_p1.remove(bullet1)
+                    bullets_p2.remove(bullet2)
+                break
 
     # Update bullets for both players
     for bullet in bullets_p1[:]:
@@ -322,9 +345,12 @@ def update_game_state():
         # Check if bullet hits player 2
         if (abs(bullet['x'] - player2_position_x) < SHIP_WIDTH/2 and
             abs(bullet['y'] - player2_position_y) < SHIP_HEIGHT/2):
-            game_is_over = True
-            print("Player 1 wins! Player 2's ship was destroyed!")
-            return
+            player2_health -= BULLET_DAMAGE
+            bullets_p1.remove(bullet)
+            if player2_health <= 0:
+                game_is_over = True
+                print("Player 1 wins! Player 2's ship was destroyed!")
+            continue
 
     for bullet in bullets_p2[:]:
         bullet['x'] -= BULLET_SPEED * (current_time - bullet['last_update'])
@@ -336,39 +362,26 @@ def update_game_state():
         # Check if bullet hits player 1
         if (abs(bullet['x'] - player1_position_x) < SHIP_WIDTH/2 and
             abs(bullet['y'] - player1_position_y) < SHIP_HEIGHT/2):
-            game_is_over = True
-            print("Player 2 wins! Player 1's ship was destroyed!")
-            return
+            player1_health -= BULLET_DAMAGE
+            bullets_p2.remove(bullet)
+            if player1_health <= 0:
+                game_is_over = True
+                print("Player 2 wins! Player 1's ship was destroyed!")
+            continue
 
-    # Update circles for player 1
-    for circle in circles_p1[:]:
+    # Update all circles
+    for circle in circles[:]:
         circle['y'] -= CIRCLE_SPEED * (current_time - circle['last_update'])
         circle['last_update'] = current_time
 
         if circle['y'] < 0:
-            circles_p1.remove(circle)
-
-    # Update circles for player 2
-    for circle in circles_p2[:]:
-        circle['y'] -= CIRCLE_SPEED * (current_time - circle['last_update'])
-        circle['last_update'] = current_time
-
-        if circle['y'] < 0:
-            circles_p2.remove(circle)
+            circles.remove(circle)
 
     # Spawn new circles
-    if current_time - last_circle_spawn_time > 2:
-        # Spawn circle for player 1 (from right)
-        circles_p1.append({
-            'x': random.randint(0, WINDOW_WIDTH//2),
-            'y': WINDOW_HEIGHT,
-            'radius': CIRCLE_RADIUS,
-            'is_special': random.random() < 0.2,
-            'last_update': current_time
-        })
-        # Spawn circle for player 2 (from left)
-        circles_p2.append({
-            'x': random.randint(WINDOW_WIDTH//2, WINDOW_WIDTH),
+    if current_time - last_circle_spawn_time > 3:
+        # Spawn a single circle at random x position
+        circles.append({
+            'x': random.randint(0, WINDOW_WIDTH),
             'y': WINDOW_HEIGHT,
             'radius': CIRCLE_RADIUS,
             'is_special': random.random() < 0.2,
@@ -377,13 +390,14 @@ def update_game_state():
         last_circle_spawn_time = current_time
 
     # Detect collisions
-    for circle in circles_p1[:]:
+    for circle in circles[:]:
         circle_box = {
             'x': circle['x'] - circle['radius'],
             'y': circle['y'] - circle['radius'],
             'width': 2 * circle['radius'],
             'height': 2 * circle['radius']
         }
+        # Check collisions with player 1's bullets
         for bullet in bullets_p1[:]:
             bullet_box = {
                 'x': bullet['x'],
@@ -397,72 +411,56 @@ def update_game_state():
                 circle_box['y'] + circle_box['height'] > bullet_box['y']):
                 player1_score += SPECIAL_CIRCLE_POINTS if circle['is_special'] else 1
                 print(f"Player 1 Score updated! Current Score: {player1_score}")
-                circles_p1.remove(circle)
+                circles.remove(circle)
                 bullets_p1.remove(bullet)
-                break
-        for bullet in bullets_p2[:]:
-            bullet_box = {
-                'x': bullet['x'],
-                'y': bullet['y'],
-                'width': 1,
-                'height': 1
-            }
-            if (circle_box['x'] < bullet_box['x'] + bullet_box['width'] and
-                circle_box['x'] + circle_box['width'] > bullet_box['x'] and
-                circle_box['y'] < bullet_box['y'] + bullet_box['height'] and
-                circle_box['y'] + circle_box['height'] > bullet_box['y']):
-                player2_score += SPECIAL_CIRCLE_POINTS if circle['is_special'] else 1
-                print(f"Player 2 Score updated! Current Score: {player2_score}")
-                circles_p1.remove(circle)
-                bullets_p2.remove(bullet)
                 break
 
-    for circle in circles_p2[:]:
-        circle_box = {
-            'x': circle['x'] - circle['radius'],
-            'y': circle['y'] - circle['radius'],
-            'width': 2 * circle['radius'],
-            'height': 2 * circle['radius']
-        }
-        for bullet in bullets_p1[:]:
-            bullet_box = {
-                'x': bullet['x'],
-                'y': bullet['y'],
-                'width': 1,
-                'height': 1
-            }
-            if (circle_box['x'] < bullet_box['x'] + bullet_box['width'] and
-                circle_box['x'] + circle_box['width'] > bullet_box['x'] and
-                circle_box['y'] < bullet_box['y'] + bullet_box['height'] and
-                circle_box['y'] + circle_box['height'] > bullet_box['y']):
-                player1_score += SPECIAL_CIRCLE_POINTS if circle['is_special'] else 1
-                print(f"Player 1 Score updated! Current Score: {player1_score}")
-                circles_p2.remove(circle)
-                bullets_p1.remove(bullet)
-                break
-        for bullet in bullets_p2[:]:
-            bullet_box = {
-                'x': bullet['x'],
-                'y': bullet['y'],
-                'width': 1,
-                'height': 1
-            }
-            if (circle_box['x'] < bullet_box['x'] + bullet_box['width'] and
-                circle_box['x'] + circle_box['width'] > bullet_box['x'] and
-                circle_box['y'] < bullet_box['y'] + bullet_box['height'] and
-                circle_box['y'] + circle_box['height'] > bullet_box['y']):
-                player2_score += SPECIAL_CIRCLE_POINTS if circle['is_special'] else 1
-                print(f"Player 2 Score updated! Current Score: {player2_score}")
-                circles_p2.remove(circle)
-                bullets_p2.remove(bullet)
-                break
+        # Check collisions with player 2's bullets
+        if circle in circles:  # Only check if circle wasn't already removed
+            for bullet in bullets_p2[:]:
+                bullet_box = {
+                    'x': bullet['x'],
+                    'y': bullet['y'],
+                    'width': 1,
+                    'height': 1
+                }
+                if (circle_box['x'] < bullet_box['x'] + bullet_box['width'] and
+                    circle_box['x'] + circle_box['width'] > bullet_box['x'] and
+                    circle_box['y'] < bullet_box['y'] + bullet_box['height'] and
+                    circle_box['y'] + circle_box['height'] > bullet_box['y']):
+                    player2_score += SPECIAL_CIRCLE_POINTS if circle['is_special'] else 1
+                    print(f"Player 2 Score updated! Current Score: {player2_score}")
+                    circles.remove(circle)
+                    bullets_p2.remove(bullet)
+                    break
+
+        # Check collision with player 1
+        if ship_collision_with_circle(player1_position_x, player1_position_y, 
+                                    circle['x'], circle['y'], circle['radius']):
+            player1_health -= OBSTACLE_DAMAGE
+            circles.remove(circle)
+            if player1_health <= 0:
+                game_is_over = True
+                print("Player 2 wins! Player 1 crashed!")
+            continue
+
+        # Check collision with player 2
+        if ship_collision_with_circle(player2_position_x, player2_position_y, 
+                                    circle['x'], circle['y'], circle['radius']):
+            player2_health -= OBSTACLE_DAMAGE
+            circles.remove(circle)
+            if player2_health <= 0:
+                game_is_over = True
+                print("Player 1 wins! Player 2 crashed!")
+            continue
 
     glutPostRedisplay()
 
 # Mouse interaction for buttons
 def handle_mouse(button, state, x, y):
-    global is_paused, game_is_over, circles_p1, circles_p2, bullets_p1, bullets_p2
+    global is_paused, game_is_over, circles, bullets_p1, bullets_p2
     global player1_score, player2_score, first_start, last_circle_spawn_time, current_score
+    global player1_health, player2_health  # Add this
     
     if state == GLUT_DOWN:
         y = WINDOW_HEIGHT - y  # Adjust y for OpenGL's coordinate system
@@ -476,11 +474,12 @@ def handle_mouse(button, state, x, y):
                     else:
                         is_paused = not is_paused  # Toggle pause state
                 elif name == "restart":
+                    player1_health = MAX_HEALTH  # Reset health
+                    player2_health = MAX_HEALTH
                     player1_score = 0
                     player2_score = 0
                     current_score = 0
-                    circles_p1 = []
-                    circles_p2 = []
+                    circles = []
                     bullets_p1 = []
                     bullets_p2 = []
                     game_is_over = False
@@ -497,13 +496,13 @@ def handle_keyboard(key, x, y):
 
     if not game_is_over and not is_paused:
         # Player 1 controls (WASD for movement, SPACE for shooting)
-        if key == b'w' and player1_position_y < WINDOW_HEIGHT - SHIP_HEIGHT/2:
+        if key == b'w' and player1_position_y < WINDOW_HEIGHT - TOP_PADDING:
             player1_position_y += SHIP_SPEED
-        elif key == b's' and player1_position_y > SHIP_HEIGHT/2:
+        elif key == b's' and player1_position_y > SHIP_HEIGHT + SIDE_PADDING:
             player1_position_y -= SHIP_SPEED
-        elif key == b'a' and player1_position_x > SHIP_WIDTH:
+        elif key == b'a' and player1_position_x > SIDE_PADDING + 20:
             player1_position_x -= SHIP_SPEED
-        elif key == b'd' and player1_position_x < WINDOW_WIDTH/2 - SHIP_WIDTH:
+        elif key == b'd' and player1_position_x < (WINDOW_WIDTH/2) - SHIP_WIDTH - MIDDLE_PADDING:
             player1_position_x += SHIP_SPEED
         elif key == b' ':
             bullets_p1.append({
@@ -513,13 +512,13 @@ def handle_keyboard(key, x, y):
             })
 
         # Player 2 controls (IJKL for movement, P for shooting)
-        if key == b'i' and player2_position_y < WINDOW_HEIGHT - SHIP_HEIGHT/2:
+        if key == b'i' and player2_position_y < WINDOW_HEIGHT - TOP_PADDING:
             player2_position_y += SHIP_SPEED
-        elif key == b'k' and player2_position_y > SHIP_HEIGHT/2:
+        elif key == b'k' and player2_position_y > SHIP_HEIGHT + SIDE_PADDING:
             player2_position_y -= SHIP_SPEED
-        elif key == b'j' and player2_position_x > WINDOW_WIDTH/2 + SHIP_WIDTH:
+        elif key == b'j' and player2_position_x > (WINDOW_WIDTH/2) + SHIP_WIDTH + MIDDLE_PADDING:
             player2_position_x -= SHIP_SPEED
-        elif key == b'l' and player2_position_x < WINDOW_WIDTH - SHIP_WIDTH:
+        elif key == b'l' and player2_position_x < WINDOW_WIDTH - SIDE_PADDING - 20:
             player2_position_x += SHIP_SPEED
         elif key == b'p':
             bullets_p2.append({
@@ -533,6 +532,7 @@ def render_game():
     glClear(GL_COLOR_BUFFER_BIT)
 
     if not game_is_over:
+        render_health_bars()  # Add this line at the top
         # Render both ships
         render_ship(player1_position_x, player1_position_y, True)
         render_ship(player2_position_x, player2_position_y, False)
@@ -543,10 +543,8 @@ def render_game():
         for bullet in bullets_p2:
             draw_circle(bullet['x'], bullet['y'], 5)
 
-        # Render circles for both players
-        for circle in circles_p1:
-            render_circle(circle['x'], circle['y'], circle['radius'], circle['is_special'])
-        for circle in circles_p2:
+        # Render all circles
+        for circle in circles:
             render_circle(circle['x'], circle['y'], circle['radius'], circle['is_special'])
 
         # Render scores
@@ -555,17 +553,58 @@ def render_game():
     render_buttons()
     glutSwapBuffers()
 
+# Add health bar rendering function
+def render_health_bars():
+    bar_y = WINDOW_HEIGHT - (TOP_PADDING - 10)  # Position health bars with padding
+    
+    # Player 1 health bar (left side)
+    # Red background
+    glColor3f(1, 0, 0)
+    glBegin(GL_POINTS)
+    for h in range(HEALTH_BAR_HEIGHT):
+        draw_line(HEALTH_BAR_PADDING, bar_y + h, 
+                  WINDOW_WIDTH//4, bar_y + h)
+    glEnd()
+    
+    # Green health
+    glColor3f(0, 1, 0)
+    health_width = (WINDOW_WIDTH//4 - HEALTH_BAR_PADDING) * (player1_health/MAX_HEALTH)
+    glBegin(GL_POINTS)
+    for h in range(HEALTH_BAR_HEIGHT):
+        draw_line(HEALTH_BAR_PADDING, bar_y + h,
+                  HEALTH_BAR_PADDING + health_width, bar_y + h)
+    glEnd()
+
+    # Player 2 health bar (right side)
+    # Red background
+    glColor3f(1, 0, 0)
+    glBegin(GL_POINTS)
+    for h in range(HEALTH_BAR_HEIGHT):
+        draw_line(WINDOW_WIDTH - WINDOW_WIDTH//4, bar_y + h,
+                  WINDOW_WIDTH - HEALTH_BAR_PADDING, bar_y + h)
+    glEnd()
+    
+    # Green health
+    glColor3f(0, 1, 0)
+    health_width = (WINDOW_WIDTH//4 - HEALTH_BAR_PADDING) * (player2_health/MAX_HEALTH)
+    glBegin(GL_POINTS)
+    for h in range(HEALTH_BAR_HEIGHT):
+        draw_line(WINDOW_WIDTH - HEALTH_BAR_PADDING - health_width, bar_y + h,
+                  WINDOW_WIDTH - HEALTH_BAR_PADDING, bar_y + h)
+    glEnd()
+
 # Initialize OpenGL
 def init():
     glClearColor(0, 0, 0, 0)
     gluOrtho2D(0, WINDOW_WIDTH, 0, WINDOW_HEIGHT)
+    glPointSize(2.0)  # Makes all points thicker
 
 
 glutInit()
 glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB)
 glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT)
 glutInitWindowPosition(500, 100)
-glutCreateWindow(b"Shoot the Circles!")
+glutCreateWindow(b"Rocket Shootout!")
 init()
 glutDisplayFunc(render_game)
 glutIdleFunc(update_game_state)
