@@ -26,6 +26,7 @@ HEALTH_BAR_HEIGHT = 5
 HEALTH_BAR_PADDING = 20  # Increased padding
 BULLET_DAMAGE = 15
 OBSTACLE_DAMAGE = 10
+SPECIAL_OBSTACLE_DAMAGE = 30  # New constant for special circle damage
 
 MIDDLE_PADDING = 30  # Space between player areas
 TOP_PADDING = 110  # Space from top for health bars
@@ -265,33 +266,43 @@ def render_buttons():
 
 # Update game state
 def ship_collision_with_circle(ship_x, ship_y, circle_x, circle_y, circle_radius):
-    # Ship hitbox components
-    half_width = SHIP_WIDTH // 2
-    main_body_height = int(SHIP_HEIGHT * 0.75)
+    # Determine if it's player 1 (facing right) or player 2 (facing left)
+    is_player_one = ship_x < WINDOW_WIDTH // 2
+    half_height = SHIP_HEIGHT // 2
+    main_body_width = int(SHIP_WIDTH * 0.75)
     
-    # Main body hitbox
-    body_box = {
-        'x': ship_x - half_width,
-        'y': ship_y,
-        'width': SHIP_WIDTH,
-        'height': main_body_height
-    }
-    
-    # Wings hitbox (wider at the bottom)
-    wing_box = {
-        'x': ship_x - SHIP_WIDTH,
-        'y': ship_y,
-        'width': SHIP_WIDTH * 2,
-        'height': main_body_height // 3
-    }
-    
-    # Nose hitbox (triangle approximated as rectangle)
-    nose_box = {
-        'x': ship_x - half_width,
-        'y': ship_y + main_body_height,
-        'width': SHIP_WIDTH,
-        'height': SHIP_HEIGHT - main_body_height
-    }
+    if is_player_one:
+        # Player 1 (facing right) hitbox
+        body_box = {
+            'x': ship_x,  # Start from the left edge
+            'y': ship_y - half_height,  # Center vertically
+            'width': main_body_width,  # Main body width
+            'height': SHIP_HEIGHT  # Full height
+        }
+        
+        # Nose hitbox for player 1
+        nose_box = {
+            'x': ship_x + main_body_width,  # Start from where main body ends
+            'y': ship_y - half_height // 2,  # Slightly smaller height for nose
+            'width': SHIP_WIDTH - main_body_width,  # Remaining width for nose
+            'height': SHIP_HEIGHT // 2  # Reduced height for nose
+        }
+    else:
+        # Player 2 (facing left) hitbox
+        body_box = {
+            'x': ship_x - main_body_width,  # Start from the right edge minus body width
+            'y': ship_y - half_height,  # Center vertically
+            'width': main_body_width,  # Main body width
+            'height': SHIP_HEIGHT  # Full height
+        }
+        
+        # Nose hitbox for player 2
+        nose_box = {
+            'x': ship_x - SHIP_WIDTH,  # Start from the leftmost point
+            'y': ship_y - half_height // 2,  # Slightly smaller height for nose
+            'width': SHIP_WIDTH - main_body_width,  # Remaining width for nose
+            'height': SHIP_HEIGHT // 2  # Reduced height for nose
+        }
     
     # Circle hitbox
     circle_box = {
@@ -301,8 +312,8 @@ def ship_collision_with_circle(ship_x, ship_y, circle_x, circle_y, circle_radius
         'height': 2 * circle_radius
     }
     
-    # Check collision with each ship component
-    for box in [body_box, wing_box, nose_box]:
+    # Check collision with body and nose
+    for box in [body_box, nose_box]:
         if (circle_box['x'] < box['x'] + box['width'] and
             circle_box['x'] + circle_box['width'] > box['x'] and
             circle_box['y'] < box['y'] + box['height'] and
@@ -437,7 +448,9 @@ def update_game_state():
         # Check collision with player 1
         if ship_collision_with_circle(player1_position_x, player1_position_y, 
                                     circle['x'], circle['y'], circle['radius']):
-            player1_health -= OBSTACLE_DAMAGE
+            # Apply different damage based on circle type
+            damage = SPECIAL_OBSTACLE_DAMAGE if circle['is_special'] else OBSTACLE_DAMAGE
+            player1_health -= damage
             circles.remove(circle)
             if player1_health <= 0:
                 game_is_over = True
@@ -447,7 +460,9 @@ def update_game_state():
         # Check collision with player 2
         if ship_collision_with_circle(player2_position_x, player2_position_y, 
                                     circle['x'], circle['y'], circle['radius']):
-            player2_health -= OBSTACLE_DAMAGE
+            # Apply different damage based on circle type
+            damage = SPECIAL_OBSTACLE_DAMAGE if circle['is_special'] else OBSTACLE_DAMAGE
+            player2_health -= damage
             circles.remove(circle)
             if player2_health <= 0:
                 game_is_over = True
@@ -492,7 +507,12 @@ def handle_mouse(button, state, x, y):
 
 # Handle keyboard input
 def handle_keyboard(key, x, y):
-    global player1_position_y, player1_position_x, player2_position_y, player2_position_x, bullets_p1, bullets_p2
+    global player1_position_y, player1_position_x, player2_position_y, player2_position_x, bullets_p1, bullets_p2, is_paused
+
+    # Handle escape key for pause/unpause
+    if key == b'\x1b':  # ASCII code for escape key
+        is_paused = not is_paused
+        return
 
     if not game_is_over and not is_paused:
         # Player 1 controls (WASD for movement, SPACE for shooting)
@@ -546,14 +566,12 @@ def render_game():
         # Render all circles
         for circle in circles:
             render_circle(circle['x'], circle['y'], circle['radius'], circle['is_special'])
-
-        # Render scores
-        # (You'll need to add text rendering for scores)
+        
 
     render_buttons()
     glutSwapBuffers()
 
-# Add health bar rendering function
+# health bar rendering function
 def render_health_bars():
     bar_y = WINDOW_HEIGHT - (TOP_PADDING - 10)  # Position health bars with padding
     
