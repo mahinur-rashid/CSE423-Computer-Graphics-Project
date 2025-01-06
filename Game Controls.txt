@@ -23,3 +23,7 @@
 - Left-most button icon*: Restart
 - right-most button icon*: Exit
 - middle button icon*: Play/Pause
+
+## keyboard functionalities
+
+- ESC key*: Play/Pause
