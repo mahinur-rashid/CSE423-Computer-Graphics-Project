@@ -1,0 +1,71 @@
+# Sky Dominator Game
+
+This project is a computer graphics application using OpenGL for a two-player game called "Rocket Shootout".
+
+## Functions
+
+### `draw_circle_points(cx, cy, x, y)`
+Helper function to draw points of a circle.
+
+### `draw_circle(cx, cy, radius)`
+Draws a circle using the midpoint circle algorithm.
+
+### `find_zone(x1, y1, x2, y2)`
+Finds the zone for a line segment.
+
+### `convert_to_zone0(x, y, zone)`
+Converts coordinates to zone 0.
+
+### `convert_from_zone0(x, y, zone)`
+Converts coordinates from zone 0.
+
+### `draw_line(x1, y1, x2, y2)`
+Draws a line using the midpoint line algorithm.
+
+### `render_ship(x, y, is_player_one)`
+Renders a spaceship at the given coordinates.
+
+### `render_circle(x, y, radius, is_special)`
+Renders a circle at the given coordinates.
+
+### `draw_play_symbol(x, y, size)`
+Draws a play symbol.
+
+### `draw_pause_symbol(x, y, size)`
+Draws a pause symbol.
+
+### `draw_restart_symbol(x, y, size)`
+Draws a restart symbol.
+
+### `draw_quit_symbol(x, y, size)`
+Draws a quit symbol.
+
+### `render_buttons()`
+Renders the control buttons.
+
+### `ship_collision_with_circle(ship_x, ship_y, circle_x, circle_y, circle_radius)`
+Checks for collision between a ship and a circle.
+
+### `update_game_state()`
+Updates the game state, including positions of bullets and circles, and checks for collisions.
+
+### `handle_mouse(button, state, x, y)`
+Handles mouse input for control buttons.
+
+### `handle_keyboard(key, x, y)`
+Handles keyboard input for player controls.
+
+### `render_game()`
+Main render function for the game.
+
+### `render_health_bars()`
+Renders the health bars for both players.
+
+### `init()`
+Initializes OpenGL settings.
+
+## Running the Game
+
+To run the game, execute the following command:
+
+python Game.py

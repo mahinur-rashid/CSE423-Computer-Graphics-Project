@@ -1,0 +1,25 @@
+
+## Player Controls
+
+### Player 1:
+
+- **W**: Move up
+- **S**: Move down
+- **A**: Move left
+- **D**: Move right
+- **SPACE**: Shoot
+
+### Player 2:
+
+- **I**: Move up
+- **K**: Move down
+- **J**: Move left
+- **L**: Move right
+- **P**: Shoot
+
+
+## Top buttons
+
+- Left-most button icon*: Restart
+- right-most button icon*: Exit
+- middle button icon*: Play/Pause
