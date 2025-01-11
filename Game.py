@@ -361,6 +361,34 @@ def render_buttons():
             draw_quit_symbol(x + size // 4, y + size // 4, size // 2)
 
 
+# Add new functions for text rendering
+def draw_char(x, y, char, scale=1):
+    if char not in CHAR_POINTS:
+        return
+    
+    points = CHAR_POINTS[char]
+    if not points:  # Handle space character
+        return
+        
+    glBegin(GL_POINTS)
+    # Draw lines between consecutive points
+    for i in range(len(points) - 1):
+        x1, y1 = points[i]
+        x2, y2 = points[i + 1]
+        # Scale and offset the coordinates
+        x1, y1 = x + x1 * scale, y + y1 * scale
+        x2, y2 = x + x2 * scale, y + y2 * scale
+        draw_line(int(x1), int(y1), int(x2), int(y2))
+    glEnd()
+
+def draw_text(x, y, text, scale=1):
+    current_x = x
+    for char in text.upper():
+        draw_char(current_x, y, char, scale)
+        current_x += (CHAR_WIDTH + CHAR_SPACING) * scale
+    return current_x  # Return the end position for potential continued text
+
+
 # Update game state
 def ship_collision_with_circle(ship_x, ship_y, circle_x, circle_y, circle_radius):
     # Determine if it's player 1 (facing right) or player 2 (facing left)
@@ -705,10 +733,17 @@ def render_game():
     glClear(GL_COLOR_BUFFER_BIT)
 
     if game_is_over:
+        # Calculate center position for text
+        msg_width = len(game_message) * (CHAR_WIDTH + CHAR_SPACING)
+        score_width = len(score_message) * (CHAR_WIDTH + CHAR_SPACING)
+        
+        msg_x = (WINDOW_WIDTH - msg_width) // 2
+        score_x = (WINDOW_WIDTH - score_width) // 2
+        
         # Render game over messages
         glColor3f(1, 1, 1)
-        draw_text(WINDOW_WIDTH//4, WINDOW_HEIGHT//2, game_message, 1.5)
-        draw_text(WINDOW_WIDTH//4, WINDOW_HEIGHT//2 - 40, score_message, 1)
+        draw_text(msg_x, WINDOW_HEIGHT//2 + 30, game_message, 1.5)
+        draw_text(score_x, WINDOW_HEIGHT//2 - 30, score_message, 1)
     else:
         render_health_bars()
         render_ship(player1_position_x, player1_position_y, True)
@@ -781,26 +816,6 @@ def render_health_bars():
             bar_y + h,
         )
     glEnd()
-
-
-# Add new functions for text rendering
-def draw_char(x, y, char, scale=1):
-    if char not in CHAR_POINTS:
-        return
-    
-    glBegin(GL_POINTS)
-    for px, py in CHAR_POINTS[char]:
-        # Draw multiple points to make characters thicker
-        for dx in range(2):
-            for dy in range(2):
-                glVertex2f(x + (px + dx) * scale, y + (py + dy) * scale)
-    glEnd()
-
-def draw_text(x, y, text, scale=1):
-    current_x = x
-    for char in text.upper():  # Convert to uppercase as we only defined uppercase letters
-        draw_char(current_x, y, char, scale)
-        current_x += (CHAR_WIDTH + CHAR_SPACING) * scale
 
 
 # Initialize OpenGL
